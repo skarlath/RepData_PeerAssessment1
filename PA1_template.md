@@ -9,21 +9,28 @@ output:
 ## Loading and preprocessing the data
 
 ```r
+##Load the data
 data <- read.csv("activity//activity.csv", stringsAsFactors = FALSE, na.strings = "NA")
+##Load the libraries we will use
 library("lubridate")
 library("sqldf")
 ```
 
+
+
 ## What is mean total number of steps taken per day?
 
 ```r
+##Get the total number of steps for each date and plot it
 stepsbyday <- sqldf("select sum(steps) as steps from data group by date")
 hist(stepsbyday$steps)
 ```
 
 ![plot of chunk unnamed-chunk-2](figure/unnamed-chunk-2-1.png) 
 
+
 ```r
+##Get the mean and the median
 sqldf("select avg(steps) from stepsbyday")
 ```
 
@@ -44,25 +51,29 @@ median(stepsbyday$steps, na.rm = TRUE)
 ## What is the average daily activity pattern?
 
 ```r
+##Get the average number of steps per interval and plot it
 stepsbyinterval <- sqldf("select interval, avg(steps) as steps from data group by interval")
 plot(stepsbyinterval$steps, stepsbyinterval$interval, type = "l", lab=c(5,24,4), las =1)
 ```
 
-![plot of chunk unnamed-chunk-3](figure/unnamed-chunk-3-1.png) 
+![plot of chunk unnamed-chunk-4](figure/unnamed-chunk-4-1.png) 
+The average daily activity pattern shows significant activity from 8-9 with an average amount of activity across the rest of the general waking period that drops off near the end of the waking period.
 
 ```r
-sqldf("select interval from stepsbyinterval where 
+##Grab the max steps and figure out which interval it occured in
+sqldf("select interval, steps from stepsbyinterval where 
 	steps = (select max(steps) from stepsbyinterval)")
 ```
 
 ```
-##   interval
-## 1      835
+##   interval steps
+## 1      835   206
 ```
 
 ## Imputing missing values
 
 ```r
+##Get all the records with missing steps
 sqldf("select count(0) from data where steps is null")
 ```
 
@@ -72,6 +83,7 @@ sqldf("select count(0) from data where steps is null")
 ```
 
 ```r
+##Check and see the distribution of the missing records across each interval 
 sqldf("select count(0), interval from data where steps is null group by interval")
 ```
 
@@ -368,6 +380,7 @@ sqldf("select count(0), interval from data where steps is null group by interval
 ```
 
 ```r
+##Check and see the distribution of the missing records across each date
 sqldf("select count(0), date from data where steps is null group by date")
 ```
 
@@ -382,7 +395,11 @@ sqldf("select count(0), date from data where steps is null group by date")
 ## 7      288 2012-11-14
 ## 8      288 2012-11-30
 ```
-###Missing data is uniformly distributed across each day and interval
+
+```r
+##(note that there are 288 intervals per date in our data)
+```
+Missing data is uniformly distributed across each day and interval. The data seems to be missing each day completely and nothing else. We will take the average for each interval and add it for each day that it is missing
 
 ```r
 fillData <- sqldf("select * from stepsbyinterval left join (select distinct date from data where steps is null) d")
@@ -392,7 +409,7 @@ stepsbyday <- sqldf("select sum(steps) as steps from datafill group by date")
 hist(stepsbyday$steps)
 ```
 
-![plot of chunk unnamed-chunk-5](figure/unnamed-chunk-5-1.png) 
+![plot of chunk unnamed-chunk-7](figure/unnamed-chunk-7-1.png) 
 
 ```r
 sqldf("select avg(steps) from stepsbyday")
@@ -410,21 +427,30 @@ median(stepsbyday$steps, na.rm = TRUE)
 ```
 ## [1] 10641
 ```
+From the plot, we can see that adding the missing data as averages causes the average occurance to increase sharply. Since the data is uniformly distributed across each day and time period simply removing the missing measurements does not affect our interval average or our daily average.
+
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
 ```r
-wdata <- transform(data, date = weekdays(ymd(date)))
+##get the data and transform it into two datasets, one for weekdays and one for weekends
+##note we are using the filled in data so any differences between the two are less distinct
+wdata <- transform(datafill, date = weekdays(ymd(date)))
 wdata <- sqldf("select steps, case when date = 'Saturday' or date = 'Sunday' then 'Weekend' else 'Weekday' end as dayType, interval from wdata where not steps is null")
 wdata <- sqldf("select avg(steps) as steps, dayType, interval from wdata group by dayType, interval")
 weekend <- sqldf("select steps, interval from wdata where dayType = 'Weekend'")
 weekday <- sqldf("select steps, interval from wdata where dayType = 'Weekday'")
+##plot the data side by side
 par(mfrow=c(1,2))
 plot(weekday$steps, weekday$interval, type = "l", lab=c(5,24,4), las =1)
 plot(weekend$steps, weekend$interval, type = "l", lab=c(5,24,4), las =1)
 ```
 
-![plot of chunk unnamed-chunk-6](figure/unnamed-chunk-6-1.png) 
+![plot of chunk unnamed-chunk-8](figure/unnamed-chunk-8-1.png) 
+Both data sets show a strong spike around 0800 and 0900 and strong low from 2200 to 0600
+
+The weekday data drops off during business hours from 0900 to 1800 with a small pickup afterwards
+
 
 
