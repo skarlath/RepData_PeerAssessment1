@@ -7,19 +7,58 @@ output:
 
 
 ## Loading and preprocessing the data
+```{r}
+data <- read.csv("activity//activity.csv", stringsAsFactors = FALSE, na.strings = "NA")
+library("lubridate")
+library("sqldf")
 
-
+```
 
 ## What is mean total number of steps taken per day?
-
+```{r}
+stepsbyday <- sqldf("select sum(steps) as steps from data group by date")
+hist(stepsbyday$steps)
+sqldf("select avg(steps) from stepsbyday")
+median(stepsbyday$steps, na.rm = TRUE)
+```
 
 
 ## What is the average daily activity pattern?
-
-
+```{r}
+stepsbyinterval <- sqldf("select interval, avg(steps) as steps from data group by interval")
+plot(stepsbyinterval$steps, stepsbyinterval$interval, type = "l", lab=c(5,24,4), las =1)
+sqldf("select interval from stepsbyinterval where 
+	steps = (select max(steps) from stepsbyinterval)")
+```
 
 ## Imputing missing values
-
+```{r}
+sqldf("select count(0) from data where steps is null")
+sqldf("select count(0), interval from data where steps is null group by interval")
+sqldf("select count(0), date from data where steps is null group by date")
+```
+###Missing data is uniformly distributed across each day and interval
+```{r}
+fillData <- sqldf("select * from stepsbyinterval left join (select distinct date from data where steps is null) d")
+datafill <- sqldf("select * from data where not steps is null")
+datafill <- sqldf(c("insert into datafill(steps, date, interval) select steps, date, interval from fillData", "select * from datafill"))
+stepsbyday <- sqldf("select sum(steps) as steps from datafill group by date")
+hist(stepsbyday$steps)
+sqldf("select avg(steps) from stepsbyday")
+median(stepsbyday$steps, na.rm = TRUE)
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+wdata <- transform(data, date = weekdays(ymd(date)))
+wdata <- sqldf("select steps, case when date = 'Saturday' or date = 'Sunday' then 'Weekend' else 'Weekday' end as dayType, interval from wdata where not steps is null")
+wdata <- sqldf("select avg(steps) as steps, dayType, interval from wdata group by dayType, interval")
+weekend <- sqldf("select steps, interval from wdata where dayType = 'Weekend'")
+weekday <- sqldf("select steps, interval from wdata where dayType = 'Weekday'")
+par(mfrow=c(1,2))
+plot(weekday$steps, weekday$interval, type = "l", lab=c(5,24,4), las =1)
+plot(weekend$steps, weekend$interval, type = "l", lab=c(5,24,4), las =1)
+```
+
+
